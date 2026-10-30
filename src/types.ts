@@ -1,123 +1,140 @@
 export interface Batch {
   _id: string;
-  batchId?: string;
-  name?: string;
-  batchName?: string;
+  batchId: string;
+  batchName: string;
+  batchPrice?: number;
+  batchImage?: string;
+  template?: string;
+  BatchType?: string;
+  language?: string;
   byName?: string;
   startDate?: string;
   endDate?: string;
-  language?: string;
-  previewImage?: string;
-  batchImage?: string;
-  feeTotal?: number;
-  batchPrice?: number;
-  type?: string;
-  template?: string;
+  batchStatus?: boolean;
   slug?: string;
-  subBatches?: any[];
 }
 
 export interface Teacher {
-  _id?: string;
-  name?: string;
-  imageUrl?: string;
-  photoUrl?: string;
+  _id: string;
+  firstName?: string;
+  lastName?: string;
+  qualification?: string;
+  experience?: string;
+  featuredLine?: string;
   subject?: string;
+  imageId?: {
+    baseUrl?: string;
+    key?: string;
+  };
 }
 
-export interface SubjectItem {
+export interface Subject {
   _id: string;
   subject: string;
-  name?: string;
-  imageId?: { baseUrl?: string; key?: string } | string;
-  teacherName?: string;
-  teacherImage?: string;
+  subjectId?: string;
   description?: string;
+  slug: string;
+  tagCount?: number;
+  lectureCount?: number;
+  imageId?: {
+    baseUrl?: string;
+    key?: string;
+  };
+  teacherIds?: Teacher[];
 }
 
-export interface ChapterItem {
+export interface BatchDetails extends Batch {
+  name?: string;
+  description?: string;
+  shortDescription?: string;
+  subjects?: Subject[];
+  khazanaProgramId?: string;
+}
+
+export interface Chapter {
   _id: string;
   name: string;
   type?: string;
+  typeId?: string;
+  displayOrder?: number;
   notes?: number;
   exercises?: number;
   videos?: number;
   lectureVideos?: number;
-  slug?: string;
+  slug: string;
 }
 
-export interface Attachment {
-  _id?: string;
-  baseUrl?: string;
-  key?: string;
+export interface VideoContent {
+  _id: string;
+  id?: string;
   name?: string;
+  image?: string;
+  videoUrl?: string;
+  description?: string;
+  duration?: string;
+  status?: string;
+  types?: string[];
+  drmProtected?: boolean;
+  hls_url?: string;
 }
 
-export interface Homework {
+export interface HomeworkItem {
   _id: string;
-  topic: string;
+  topic?: string;
   note?: string;
-  actions?: string[];
-  attachmentIds?: Attachment[];
+  attachmentIds?: Array<{
+    _id: string;
+    name?: string;
+    baseUrl?: string;
+    key?: string;
+  }>;
+  status?: string;
 }
 
-export interface LectureItem {
+export interface ExerciseItem {
+  _id: string;
+  title: string;
+  slug?: string;
+  dppId?: string;
+  totalMarks?: number;
+  totalQuestions?: number;
+}
+
+export interface TopicItem {
   _id: string;
   topic: string;
-  date?: string;
+  lectureType?: string;
   startTime?: string;
   endTime?: string;
-  urlType?: string;
-  url?: string;
-  teachers?: string[];
-  videoDetails?: {
-    _id?: string;
-    name?: string;
-    image?: string;
-    duration?: string;
-    videoUrl?: string;
-    embedCode?: string;
-    description?: string;
-  };
-  homeworkIds?: Homework[];
+  date?: string;
+  duration?: string;
+  slug?: string;
+  status?: string;
+  videoDetails?: VideoContent;
+  homeworkIds?: HomeworkItem[];
+  exerciseIds?: ExerciseItem[];
   hasAttachment?: boolean;
+  isVideoLecture?: boolean;
 }
 
-export interface ScheduleClass {
-  _id: string;
-  topic: string;
-  startTime?: string;
-  endTime?: string;
-  date?: string;
-  urlType?: string;
-  url?: string;
-  teachers?: string[];
-  videoDetails?: {
-    name?: string;
-    videoUrl?: string;
-    image?: string;
-  };
-  tag?: string;
-}
-
-export interface AnnouncementItem {
+export interface Announcement {
   _id: string;
   title?: string;
-  message?: string;
+  description?: string;
   createdAt?: string;
-  imageUrl?: string;
   author?: string;
+  bannerImage?: string;
+  attachmentUrl?: string;
 }
 
-export type NavTab = 
-  | 'study'
-  | 'batches'
-  | 'pi'
-  | 'nexttoppers'
-  | 'missionjeet'
-  | 'vibrant'
-  | 'sway'
-  | 'mybatches'
-  | 'history'
-  | 'telegram'
-  | 'contact';
+export interface TestItem {
+  _id: string;
+  title: string;
+  duration?: number;
+  totalQuestions?: number;
+  totalMarks?: number;
+  startDate?: string;
+  endDate?: string;
+  status?: string;
+  isSubjective?: boolean;
+}

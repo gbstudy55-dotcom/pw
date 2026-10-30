@@ -1,263 +1,242 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Search } from 'lucide-react';
-import { Batch, NavTab } from './types';
-import { fetchAllBatches, searchBatches } from './services/api';
+import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
-import { Header } from './components/Header';
-import { BannerCarousel } from './components/BannerCarousel';
-import { BatchCard } from './components/BatchCard';
-import { BatchDetailView } from './components/BatchDetailView';
-import { MyBatchesView } from './components/MyBatchesView';
-import { HistoryView } from './components/HistoryView';
-import { ContactView } from './components/ContactView';
-import { ToastContainer, ToastMessage } from './components/Toast';
+import { Navbar } from './components/Navbar';
+import { BatchesPage } from './pages/BatchesPage';
+import { BatchDetailPage } from './pages/BatchDetailPage';
+import { SubjectPage } from './pages/SubjectPage';
+import { ChapterTopicsPage } from './pages/ChapterTopicsPage';
+import { MyBatchesPage } from './pages/MyBatchesPage';
+import { DonatePage } from './pages/DonatePage';
+import { ContactPage } from './pages/ContactPage';
+import { WatchModal } from './components/WatchModal';
+import { TopicItem } from './types';
+import { Check, X } from 'lucide-react';
+import { TelegramModal } from './components/TelegramModal';
+
+interface ToastState {
+  id: number;
+  message: string;
+  isError?: boolean;
+}
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<NavTab>('batches');
-  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
+  const [currentPath, setCurrentPath] = useState('/study/batches');
+  const [history, setHistory] = useState<string[]>(['/study/batches']);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Batches state
-  const [batches, setBatches] = useState<Batch[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeSearch, setActiveSearch] = useState('');
+  // Active item route parameters
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+  const [selectedSubjectSlug, setSelectedSubjectSlug] = useState<string | null>(null);
+  const [selectedSubjectTitle, setSelectedSubjectTitle] = useState<string>('');
+  const [selectedTopicSlug, setSelectedTopicSlug] = useState<string | null>(null);
+  const [selectedChapterTitle, setSelectedChapterTitle] = useState<string>('');
 
-  // Toasts
-  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  // Active modals
+  const [activeVideoTopic, setActiveVideoTopic] = useState<TopicItem | null>(null);
+  const [activeNote, setActiveNote] = useState<{ url: string; title: string } | null>(null);
 
-  const showToast = useCallback((text: string, type: 'success' | 'error' = 'success') => {
-    const id = Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => [...prev, { id, text, type }]);
+  // Toast notifications
+  const [toasts, setToasts] = useState<ToastState[]>([]);
+
+  const showToast = (message: string, isError = false) => {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, message, isError }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4000);
+    }, 3500);
+  };
+
+  const navigateTo = (path: string) => {
+    setCurrentPath(path);
+    setHistory((prev) => [...prev, path]);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBack = () => {
+    if (history.length > 1) {
+      const newHistory = [...history];
+      newHistory.pop(); // remove current
+      const prevPath = newHistory[newHistory.length - 1];
+      setHistory(newHistory);
+      setCurrentPath(prevPath);
+    } else {
+      navigateTo('/study/batches');
+    }
+  };
+
+  const handleOpenBatch = (batchId: string) => {
+    setSelectedBatchId(batchId);
+    navigateTo(`/study/batches/${batchId}`);
+  };
+
+  const handleSelectSubject = (batchId: string, subjectSlug: string, subjectTitle: string) => {
+    setSelectedBatchId(batchId);
+    setSelectedSubjectSlug(subjectSlug);
+    setSelectedSubjectTitle(subjectTitle);
+    navigateTo(`/study/batches/${batchId}/subjects/${subjectSlug}`);
+  };
+
+  const handleSelectChapter = (topicSlug: string, chapterTitle: string) => {
+    setSelectedTopicSlug(topicSlug);
+    setSelectedChapterTitle(chapterTitle);
+    if (selectedBatchId && selectedSubjectSlug) {
+      navigateTo(`/study/batches/${selectedBatchId}/subjects/${selectedSubjectSlug}/subject-topics/${topicSlug}`);
+    }
+  };
+
+  // Sync with browser URL / history if wanted
+  useEffect(() => {
+    // Initial path sync
+    const path = window.location.pathname;
+    if (path && path !== '/' && path !== '') {
+      setCurrentPath(path);
+      setHistory([path]);
+    }
   }, []);
 
-  const dismissToast = (id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  };
-
-  // Load batches
-  const loadData = useCallback(async (pageNum: number, query: string, isAppend: boolean) => {
-    if (isAppend) {
-      setLoadingMore(true);
-    } else {
-      setLoading(true);
-    }
-
-    try {
-      const res = query.trim()
-        ? await searchBatches(query, pageNum)
-        : await fetchAllBatches(pageNum);
-
-      setBatches((prev) => (isAppend ? [...prev, ...res.batches] : res.batches));
-      setHasMore(pageNum < res.totalPages && res.batches.length > 0);
-    } catch (err: any) {
-      console.error('Failed to load batches:', err);
-      showToast('Failed to load batches. Check connection.', 'error');
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  }, [showToast]);
-
-  // Initial fetch and on search change
-  useEffect(() => {
-    setPage(1);
-    loadData(1, activeSearch, false);
-  }, [activeSearch, loadData]);
-
-  // Handle Search submit
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setActiveSearch(searchQuery);
-  };
-
-  // Debounced auto-search if user pauses typing
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchQuery !== activeSearch) {
-        setActiveSearch(searchQuery);
-      }
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [searchQuery, activeSearch]);
-
-  // Load more pagination
-  const handleLoadMore = () => {
-    if (loading || loadingMore || !hasMore) return;
-    const nextPage = page + 1;
-    setPage(nextPage);
-    loadData(nextPage, activeSearch, true);
-  };
-
-  // Handle clicking study on a batch
-  const handleStudyBatch = (batch: Batch) => {
-    setSelectedBatch(batch);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleBackToBatches = () => {
-    setSelectedBatch(null);
-  };
-
-  // Switch tabs
-  const handleSelectTab = (tab: NavTab) => {
-    setActiveTab(tab);
-    setSelectedBatch(null);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const canGoBack = Boolean(selectedBatch || activeTab !== 'batches');
-  const handleHeaderBack = () => {
-    if (selectedBatch) {
-      setSelectedBatch(null);
-    } else {
-      setActiveTab('batches');
-    }
-  };
-
   return (
-    <div className="flex min-h-screen w-full max-w-full overflow-x-hidden bg-background text-foreground">
-      {/* Sidebar Navigation */}
+    <div className="flex min-h-screen bg-gradient-to-br from-white via-[#ec4899]/5 to-[#f43f5e]/5 dark:from-slate-950 dark:via-[#f43f5e]/10 dark:to-[#ec4899]/5 text-gray-900 dark:text-gray-100">
+      {/* Sidebar navigation */}
       <Sidebar
-        activeTab={activeTab}
-        onSelectTab={handleSelectTab}
+        currentPath={currentPath}
+        onNavigate={(path) => {
+          if (path === '/study') {
+            navigateTo('/study/batches');
+          } else {
+            navigateTo(path);
+          }
+        }}
         isMobileMenuOpen={isMobileMenuOpen}
         setIsMobileMenuOpen={setIsMobileMenuOpen}
       />
 
       {/* Main Content Area */}
-      <div className="flex min-w-0 w-full max-w-full flex-1 flex-col xl:ml-64">
-        {/* Sticky Header */}
-        <Header
-          isMobileMenuOpen={isMobileMenuOpen}
-          setIsMobileMenuOpen={setIsMobileMenuOpen}
-          canGoBack={canGoBack}
-          onBack={handleHeaderBack}
+      <div className="flex-1 flex flex-col min-w-0 bg-gradient-to-br from-transparent via-[#ec4899]/3 to-[#f43f5e]/3 dark:via-[#ec4899]/5 dark:to-[#f43f5e]/5">
+        <Navbar
+          onBack={handleBack}
+          canGoBack={history.length > 1 || currentPath !== '/study/batches'}
+          onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
         />
 
-        {/* Dynamic Main Body */}
-        <main className="min-w-0 w-full max-w-full flex-1 overflow-x-hidden">
-          {/* View 1: Batch Detail View */}
-          {selectedBatch ? (
-            <BatchDetailView
-              batch={selectedBatch}
-              onBack={handleBackToBatches}
+        <main className="flex-1 pb-16">
+          {/* Batches Catalog (Home) */}
+          {(currentPath === '/study/batches' || currentPath === '/study' || currentPath === '/') && (
+            <BatchesPage
+              onOpenBatch={handleOpenBatch}
               onToast={showToast}
             />
-          ) : activeTab === 'mybatches' ? (
-            /* View 2: My Batches */
-            <MyBatchesView
-              onStudy={handleStudyBatch}
-              onExplore={() => handleSelectTab('batches')}
-              onToast={showToast}
-            />
-          ) : activeTab === 'history' ? (
-            /* View 3: History */
-            <HistoryView
-              onExplore={() => handleSelectTab('batches')}
-              onToast={showToast}
-            />
-          ) : activeTab === 'contact' ? (
-            /* View 4: Contact Us */
-            <ContactView />
-          ) : (
-            /* View 5: Batches Portal (Default & Core View) */
-            <div className="container mx-auto px-4 py-6 max-w-7xl">
-              <div className="bg-background border border-border rounded-lg p-4 sm:p-6 shadow-xs">
-                {/* Heading */}
-                <h1 className="text-2xl font-semibold mb-4 text-foreground tracking-tight">
-                  Batches
-                </h1>
-
-                {/* Search Bar */}
-                <form
-                  onSubmit={handleSearchSubmit}
-                  className="divshadow flex flex-wrap items-center gap-3 sm:gap-5"
-                >
-                  <div className="relative w-full">
-                    <div className="absolute inset-y-0 start-0 flex items-center ps-3.5 pointer-events-none text-muted-foreground">
-                      <Search className="w-4 h-4 stroke-[2.5]" />
-                    </div>
-
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="flex-grow block w-full p-4 ps-10 text-sm divshadow border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-[#5a4bda] bg-foreground/5 text-foreground placeholder:text-muted-foreground"
-                      placeholder="Search Your Batch"
-                    />
-
-                    <button
-                      type="submit"
-                      className="absolute end-2.5 bottom-2.5 font-medium rounded-lg text-sm px-4 py-2 bg-green-500 hover:bg-green-600 text-white transition-colors cursor-pointer shadow-xs"
-                    >
-                      Search
-                    </button>
-                  </div>
-                </form>
-
-                {/* Banner Carousel */}
-                <BannerCarousel />
-
-                {/* Batches Grid */}
-                {loading && page === 1 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-                    {Array.from({ length: 6 }).map((_, i) => (
-                      <BatchCard key={i} isPlaceholder />
-                    ))}
-                  </div>
-                ) : batches.length > 0 ? (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-                      {batches.map((batch) => (
-                        <BatchCard
-                          key={batch._id || batch.batchId || batch.slug}
-                          batch={batch}
-                          onStudy={handleStudyBatch}
-                          onToast={showToast}
-                        />
-                      ))}
-                    </div>
-
-                    {/* Load More Button */}
-                    {hasMore && (
-                      <div className="flex justify-center mt-6">
-                        <button
-                          type="button"
-                          onClick={handleLoadMore}
-                          disabled={loadingMore}
-                          className="border border-input bg-background hover:bg-accent hover:text-accent-foreground px-6 py-2.5 rounded-md text-sm font-medium transition-colors cursor-pointer disabled:opacity-50"
-                        >
-                          {loadingMore ? 'Loading...' : 'Load More'}
-                        </button>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="text-center py-12">
-                    <p className="text-muted-foreground font-medium">No batches found.</p>
-                    <button
-                      onClick={() => { setSearchQuery(''); setActiveSearch(''); }}
-                      className="mt-3 text-sm text-[#5a4bda] hover:underline font-semibold"
-                    >
-                      Clear search filter
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
           )}
+
+          {/* Batch Details */}
+          {currentPath.startsWith('/study/batches/') && !currentPath.includes('/subjects/') && selectedBatchId && (
+            <BatchDetailPage
+              batchId={selectedBatchId}
+              onSelectSubject={handleSelectSubject}
+              onBack={handleBack}
+              onToast={showToast}
+            />
+          )}
+
+          {/* Subject Chapters View */}
+          {currentPath.includes('/subjects/') && !currentPath.includes('/subject-topics/') && selectedBatchId && selectedSubjectSlug && (
+            <SubjectPage
+              batchId={selectedBatchId}
+              subjectSlug={selectedSubjectSlug}
+              subjectTitle={selectedSubjectTitle}
+              onSelectChapter={handleSelectChapter}
+              onBack={handleBack}
+              onToast={showToast}
+            />
+          )}
+
+          {/* Chapter Topics / Lectures View */}
+          {currentPath.includes('/subject-topics/') && selectedBatchId && selectedSubjectSlug && selectedTopicSlug && (
+            <ChapterTopicsPage
+              batchId={selectedBatchId}
+              subjectSlug={selectedSubjectSlug}
+              topicSlug={selectedTopicSlug}
+              chapterTitle={selectedChapterTitle}
+              onPlayVideo={(topic) => setActiveVideoTopic(topic)}
+              onViewNotes={(url, title) => {
+                if (url) {
+                  window.open(url, '_blank');
+                } else {
+                  setActiveNote({ url, title });
+                }
+              }}
+              onBack={handleBack}
+              onToast={showToast}
+            />
+          )}
+
+          {/* My Batches */}
+          {currentPath === '/study/mybatches' && (
+            <MyBatchesPage
+              onOpenBatch={handleOpenBatch}
+              onExplore={() => navigateTo('/study/batches')}
+              onToast={showToast}
+            />
+          )}
+
+          {/* Donate Page */}
+          {currentPath === '/study/donate' && <DonatePage />}
+
+          {/* Contact Us Page */}
+          {currentPath === '/contact' && <ContactPage />}
         </main>
       </div>
 
-      {/* Floating Notifications */}
-      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+      {/* Telegram Community Popup Modal */}
+      <TelegramModal />
+
+      {/* Video Lecture Player Modal */}
+      {activeVideoTopic && (
+        <WatchModal
+          topic={activeVideoTopic}
+          onClose={() => setActiveVideoTopic(null)}
+        />
+      )}
+
+      {/* Notes PDF Preview Modal fallback */}
+      {activeNote && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl max-w-lg w-full p-6 border border-pink-500/30 text-center space-y-4">
+            <h3 className="font-bold text-lg text-gray-900 dark:text-gray-100">
+              {activeNote.title}
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Class notes and study materials are being prepared for offline viewing.
+            </p>
+            <button
+              onClick={() => setActiveNote(null)}
+              className="px-6 py-2 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-semibold text-sm transition-colors cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Toast notifications */}
+      <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-spring-md text-sm font-semibold transition-all duration-300 ${
+              toast.isError
+                ? 'bg-rose-600 text-white border border-rose-700'
+                : 'bg-pink-600 text-white border border-pink-700'
+            }`}
+          >
+            {toast.isError ? (
+              <X className="w-4 h-4 shrink-0" />
+            ) : (
+              <Check className="w-4 h-4 shrink-0" />
+            )}
+            <span>{toast.message}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
